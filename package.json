@@ -20,11 +20,12 @@
     "format:check": "prettier --check .",
     "validate": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
     "desktop": "pnpm build && electron .",
-    "desktop:dist": "pnpm build && electron-builder --mac"
+    "desktop:dist": "pnpm build && electron-builder --mac",
+    "verify:packaging": "node scripts/verify-packaging.mjs",
+    "check:release-bundle": "node scripts/check-release-bundle.mjs"
   },
   "dependencies": {
     "audio": "^2.6.9",
-    "electron": "44.3.0",
     "music-metadata": "^11.15.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
@@ -35,6 +36,7 @@
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.2",
+    "electron": "44.0.0",
     "electron-builder": "26.15.3",
     "esbuild": "0.28.2",
     "eslint": "^9.35.0",

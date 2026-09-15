@@ -1,0 +1,37 @@
+appId: com.qdev.mashups
+productName: QDEV Mashups
+artifactName: QDEV-Mashups-${version}-${arch}.${ext}
+asar: true
+compression: normal
+directories:
+  output: dist
+  buildResources: build
+files:
+  - dist/**
+  - dist-electron/**
+  - package.json
+  - "!**/*.map"
+  - "!**/tests/**"
+  - "!**/docs/**"
+  - "!**/.venv-stems/**"
+extraResources:
+  - from: tools/mlx-demucs-worker.py
+    to: worker/mlx-demucs-worker.py
+  - from: tools
+    to: worker/tools
+    filter:
+      - "**/*.py"
+      - "!**/__pycache__/**"
+      - "!**/.venv/**"
+mac:
+  target:
+    - dmg
+  category: public.app-category.music
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+dmg:
+  title: QDEV Mashups
+npmRebuild: true
+electronVersion: "44.0.0"
