@@ -1,0 +1,183 @@
+.qdev-stem-mixer-panel {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.025)),
+    #111318;
+  color: #f2f4f7;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
+
+.qdev-stem-mixer-panel__header,
+.qdev-stem-mixer-panel__footer,
+.qdev-stem-channel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.qdev-stem-mixer-panel__header {
+  padding-bottom: 4px;
+}
+
+.qdev-stem-kicker {
+  margin: 0 0 4px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  opacity: 0.58;
+}
+
+.qdev-stem-mixer-panel h2,
+.qdev-stem-mixer-panel h3,
+.qdev-stem-mixer-panel p {
+  margin: 0;
+}
+
+.qdev-stem-mixer-panel h2 {
+  font-size: 22px;
+}
+
+.qdev-stem-mixer-panel h3 {
+  font-size: 15px;
+}
+
+.qdev-stem-subtitle,
+.qdev-stem-channel__header p {
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: 0.62;
+}
+
+.qdev-stem-channel-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.qdev-stem-channel {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.qdev-stem-channel__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.qdev-stem-meter {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.qdev-stem-meter__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: currentColor;
+  opacity: 0.8;
+  transition: width 120ms ease;
+}
+
+.qdev-stem-control {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 7px 10px;
+  font-size: 12px;
+}
+
+.qdev-stem-control input,
+.qdev-stem-master input {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.qdev-stem-control output,
+.qdev-stem-master output {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.qdev-stem-master {
+  display: grid;
+  min-width: 210px;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.qdev-stem-button,
+.qdev-stem-snapshot input,
+.qdev-stem-mixer-panel select {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.045);
+  color: inherit;
+  font: inherit;
+}
+
+.qdev-stem-button {
+  padding: 7px 9px;
+  cursor: pointer;
+}
+
+.qdev-stem-button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.qdev-stem-button[aria-pressed="true"] {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+}
+
+.qdev-stem-button--danger {
+  color: #ffb4ab;
+}
+
+.qdev-stem-snapshot {
+  display: grid;
+  gap: 6px;
+  min-width: 220px;
+  font-size: 12px;
+}
+
+.qdev-stem-snapshot input,
+.qdev-stem-mixer-panel select {
+  min-height: 34px;
+  padding: 6px 9px;
+}
+
+@media (max-width: 1100px) {
+  .qdev-stem-channel-grid {
+    grid-template-columns: repeat(2, minmax(170px, 1fr));
+  }
+
+  .qdev-stem-mixer-panel__header,
+  .qdev-stem-mixer-panel__footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .qdev-stem-master,
+  .qdev-stem-snapshot {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+@media (max-width: 620px) {
+  .qdev-stem-channel-grid {
+    grid-template-columns: 1fr;
+  }
+}
