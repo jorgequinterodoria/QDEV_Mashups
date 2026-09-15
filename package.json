@@ -69,6 +69,12 @@
           ]
         }
       ]
-    }
+    },
+    "extraResources": [
+      {
+        "from": "tools/mlx-demucs-worker.py",
+        "to": "tools/mlx-demucs-worker.py"
+      }
+    ]
   }
 }

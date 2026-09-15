@@ -7,6 +7,10 @@ import {
 } from "electron";
 
 import {
+  createHash
+} from "node:crypto";
+
+import {
   access,
   mkdir,
   readdir,
@@ -45,6 +49,20 @@ import {
 import {
   parseFile
 } from "music-metadata";
+
+import {
+  MlxDemucsProvider
+} from "../src/stems/provider-mlx-demucs.js";
+
+import {
+  StemSeparationService
+} from "../src/stems/service.js";
+
+import {
+  STEM_CHANNELS,
+  type StemChannel,
+  type StemModelName
+} from "../src/stems/types.js";
 
 const __filename =
   fileURLToPath(
@@ -147,6 +165,17 @@ interface ActiveMashupPlan {
   grade: string;
   confidence: string;
 }
+
+const stemProvider =
+  new MlxDemucsProvider();
+
+const stemService =
+  new StemSeparationService(
+    stemProvider
+  );
+
+const activeStemControllers =
+  new Map<string, AbortController>();
 
 const activeMashupPlans =
   new Map<
@@ -297,6 +326,31 @@ function registerIpc(): void {
   );
 
   ipcMain.handle(
+    "audio:choose-one",
+    async () => {
+      const result = await dialog.showOpenDialog(
+        getDialogParent(),
+        {
+          title: "Selecciona una canción para separar",
+          properties: ["openFile"],
+          filters: [
+            {
+              name: "Audio",
+              extensions: ["mp3", "wav", "flac", "aiff", "aif", "m4a", "aac", "ogg", "opus"]
+            }
+          ]
+        }
+      );
+
+      if (result.canceled || result.filePaths.length === 0) {
+        return null;
+      }
+
+      return result.filePaths[0] ?? null;
+    }
+  );
+
+  ipcMain.handle(
     "audio:choose",
     async () => {
       const result =
@@ -384,6 +438,91 @@ function registerIpc(): void {
       return createFullMashup(
         planId
       );
+    }
+  );
+
+  ipcMain.handle(
+    "audio:get-source-url",
+    async (
+      _event,
+      sourcePath: unknown
+    ) => {
+      const safePath = assertReadableAudioPath(sourcePath);
+      await access(safePath);
+      return pathToFileURL(safePath).href;
+    }
+  );
+
+  ipcMain.handle(
+    "stems:separate",
+    async (
+      _event,
+      request: unknown
+    ) => {
+      const validated = validateStemSeparationRequest(request);
+      const sourcePath = validated.sourcePath;
+      const trackId = createTrackId(sourcePath);
+      const controller = new AbortController();
+
+      activeStemControllers.set(trackId, controller);
+
+      try {
+        const result = await stemService.separate({
+          trackId,
+          sourcePath,
+          model: validated.model,
+          force: validated.force,
+          signal: controller.signal,
+          onProgress: (progress) => {
+            if (mainWindow !== null && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send("stems:progress", progress);
+            }
+          }
+        });
+
+        const stemFiles = {} as Record<StemChannel, {
+          channel: StemChannel;
+          path: string;
+          url: string;
+          sizeBytes: number;
+        }>;
+
+        for (const channel of STEM_CHANNELS) {
+          const stem = result.manifest.stems[channel];
+          stemFiles[channel] = {
+            channel,
+            path: stem.path,
+            url: pathToFileURL(stem.path).href,
+            sizeBytes: stem.sizeBytes
+          };
+        }
+
+        return {
+          cacheHit: result.cacheHit,
+          manifest: result.manifest,
+          sourceUrl: pathToFileURL(sourcePath).href,
+          stemFiles
+        };
+      } finally {
+        activeStemControllers.delete(trackId);
+      }
+    }
+  );
+
+  ipcMain.handle(
+    "stems:cancel",
+    (_event, trackId: unknown) => {
+      if (typeof trackId !== "string" || trackId.trim().length === 0) {
+        return false;
+      }
+
+      const controller = activeStemControllers.get(trackId);
+      if (!controller) {
+        return false;
+      }
+
+      controller.abort();
+      return true;
     }
   );
 
@@ -1431,6 +1570,53 @@ function isAudioFile(
   return AUDIO_EXTENSIONS.has(
     extension
   );
+}
+
+function assertReadableAudioPath(value: unknown): string {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error("La ruta del audio es obligatoria.");
+  }
+
+  const resolvedPath = resolve(value);
+  if (!isAudioFile(resolvedPath)) {
+    throw new Error("El archivo seleccionado no es un formato de audio compatible.");
+  }
+
+  return resolvedPath;
+}
+
+function validateStemSeparationRequest(
+  value: unknown
+): {
+  sourcePath: string;
+  model?: StemModelName;
+  force?: boolean;
+} {
+  if (typeof value !== "object" || value === null) {
+    throw new Error("La solicitud de separación de stems no es válida.");
+  }
+
+  const candidate = value as {
+    sourcePath?: unknown;
+    model?: unknown;
+    force?: unknown;
+  };
+
+  const sourcePath = assertReadableAudioPath(candidate.sourcePath);
+  const model = candidate.model === undefined ? undefined : candidate.model;
+  if (model !== undefined && model !== "htdemucs" && model !== "htdemucs_ft") {
+    throw new Error("El modelo de separación no es válido.");
+  }
+
+  return {
+    sourcePath,
+    model: model as StemModelName | undefined,
+    force: candidate.force === true
+  };
+}
+
+function createTrackId(sourcePath: string): string {
+  return createHash("sha256").update(resolve(sourcePath), "utf8").digest("hex");
 }
 
 function isPreviewRequest(

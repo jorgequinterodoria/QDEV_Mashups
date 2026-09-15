@@ -1,3 +1,10 @@
+import type {
+  StemChannel,
+  StemModelName,
+  StemManifest,
+  StemJobStatus
+} from "../stems/types";
+
 export interface DesktopRuntimeInfo {
   appVersion: string;
   electronVersion: string;
@@ -23,10 +30,7 @@ export interface DiscoveryCandidate {
   targetKey: string | null;
   grade: string;
   confidence: string;
-  type:
-    | "vocal"
-    | "instrumental"
-    | "hybrid";
+  type: "vocal" | "instrumental" | "hybrid";
 }
 
 export interface LibraryScanResult {
@@ -39,9 +43,7 @@ export interface LibraryScanResult {
   discoveryTracksAnalyzed: number;
 }
 
-export type MashupOutputKind =
-  | "preview"
-  | "full";
+export type MashupOutputKind = "preview" | "full";
 
 export interface PreviewResult {
   outputPath: string;
@@ -55,13 +57,45 @@ export interface PreviewResult {
   durationSeconds: number;
 }
 
+export interface StemUiFile {
+  channel: StemChannel;
+  path: string;
+  url: string;
+  sizeBytes: number;
+}
+
+export interface StemStudioResult {
+  cacheHit: boolean;
+  manifest: StemManifest;
+  sourceUrl: string;
+  stemFiles: Record<StemChannel, StemUiFile>;
+}
+
+export interface StemProgressEvent {
+  trackId: string;
+  status: StemJobStatus;
+  progress01: number;
+  message: string;
+}
+
+export interface StemSeparationRequest {
+  sourcePath: string;
+  model?: StemModelName;
+  force?: boolean;
+}
+
 export interface QdevDesktopApi {
   getRuntimeInfo(): Promise<DesktopRuntimeInfo>;
   chooseLibrary(): Promise<string | null>;
   scanLibrary(libraryRoot: string): Promise<LibraryScanResult>;
   chooseAudioFiles(): Promise<string[]>;
+  chooseAudioFile(): Promise<string | null>;
   createPreview(baseTrackPath: string, secondaryTrackPath: string): Promise<PreviewResult>;
   createFullMashup(planId: string): Promise<PreviewResult>;
   revealOutput(outputPath: string): Promise<void>;
   getAudioUrl(outputPath: string): Promise<string>;
+  getSourceAudioUrl(sourcePath: string): Promise<string>;
+  separateStems(request: StemSeparationRequest): Promise<StemStudioResult>;
+  cancelStemSeparation(trackId: string): Promise<boolean>;
+  onStemProgress(listener: (event: StemProgressEvent) => void): () => void;
 }

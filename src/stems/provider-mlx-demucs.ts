@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { access, mkdir, open, stat } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -32,20 +33,57 @@ const STEM_FILE_NAMES: Record<StemChannel, string> = {
 
 const MODULE_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 
+function getResourcesPath(): string | null {
+  return (
+    process as NodeJS.Process & { resourcesPath?: string }
+  ).resourcesPath ?? null;
+}
+
+function firstExistingPath(
+  candidates: readonly string[],
+  fallback: string
+): string {
+  return candidates.find((candidate) => existsSync(candidate)) ?? fallback;
+}
+
 function defaultWorkerScript(): string {
+  const resourcesPath = getResourcesPath();
+  const explicitWorker = process.env.QDEV_STEMS_WORKER?.trim();
+  if (explicitWorker) {
+    return explicitWorker;
+  }
+
   const candidates = [
-    process.env.QDEV_STEMS_WORKER?.trim(),
+    resourcesPath
+      ? resolve(resourcesPath, "tools/mlx-demucs-worker.py")
+      : null,
     resolve(process.cwd(), "tools/mlx-demucs-worker.py"),
     resolve(MODULE_DIRECTORY, "../../tools/mlx-demucs-worker.py"),
     resolve(MODULE_DIRECTORY, "../../../tools/mlx-demucs-worker.py")
   ].filter((value): value is string => Boolean(value));
 
-  return candidates[0] ?? resolve(process.cwd(), "tools/mlx-demucs-worker.py");
+  return firstExistingPath(
+    candidates,
+    resolve(process.cwd(), "tools/mlx-demucs-worker.py")
+  );
 }
 
 function defaultPythonExecutable(): string {
-  return (
-    process.env.QDEV_STEMS_PYTHON?.trim() ||
+  const explicitPython = process.env.QDEV_STEMS_PYTHON?.trim();
+  if (explicitPython) {
+    return explicitPython;
+  }
+
+  const resourcesPath = getResourcesPath();
+  const candidates = [
+    resolve(process.cwd(), ".venv-stems/bin/python"),
+    resourcesPath
+      ? resolve(resourcesPath, ".venv-stems/bin/python")
+      : null
+  ].filter((value): value is string => Boolean(value));
+
+  return firstExistingPath(
+    candidates,
     resolve(process.cwd(), ".venv-stems/bin/python")
   );
 }

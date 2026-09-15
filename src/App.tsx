@@ -16,6 +16,9 @@ import type {
 } from "./desktop";
 
 import { applySpanishDocumentLocale } from "./ui/locale";
+import { RgbWaveform } from "./ui/RgbWaveform";
+import type { StemChannel } from "./stems/types";
+import type { StemProgressEvent, StemStudioResult } from "./desktop/types";
 
 type View =
   | "overview"
@@ -23,7 +26,8 @@ type View =
   | "discovery"
   | "builder"
   | "preview"
-  | "dj";
+  | "dj"
+  | "stems";
 
 interface Candidate {
   baseTrackPath: string;
@@ -54,21 +58,10 @@ interface DiscoveryLibraryScanResult
   discoveryTracksAnalyzed: number;
 }
 
-const waveform =
-  Array.from(
-    {
-      length: 84
-    },
-    (_, index) =>
-      24 +
-      Math.round(
-        Math.abs(
-          Math.sin(
-            index * 0.72
-          )
-        ) * 54
-      )
-  );
+const waveform: number[] = Array.from(
+  { length: 84 },
+  (_, index) => 24 + Math.round(Math.abs(Math.sin(index * 0.72)) * 54)
+);
 
 function App() {
   useEffect(() => {
@@ -139,6 +132,10 @@ function App() {
   const [fullMashup, setFullMashup] =
     useState<PreviewResult | null>(null);
 
+  const [stemSourcePath, setStemSourcePath] = useState<string | null>(null);
+  const [stemResult, setStemResult] = useState<StemStudioResult | null>(null);
+  const [stemProgress, setStemProgress] = useState<StemProgressEvent | null>(null);
+
   const [isPlaying, setIsPlaying] =
     useState(false);
 
@@ -179,6 +176,17 @@ function App() {
     },
     [desktop]
   );
+
+  useEffect(() => {
+    if (desktop === null) {
+      return;
+    }
+
+    return desktop.onStemProgress((event) => {
+      setStemProgress(event);
+      setStatus(event.message);
+    });
+  }, [desktop]);
 
   const selectCandidate = (
     candidate: Candidate
@@ -393,6 +401,56 @@ function App() {
         setBusy(false);
       }
     };
+
+  const chooseAndSeparateStems = async (): Promise<void> => {
+    if (desktop === null) {
+      setError("La separación de stems está disponible en la aplicación de escritorio.");
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    setStemResult(null);
+    setStemProgress(null);
+
+    try {
+      const chosen = await desktop.chooseAudioFile();
+      if (chosen === null) {
+        setStatus("Selección de audio cancelada");
+        return;
+      }
+
+      const sourcePath = chosen;
+      setStemSourcePath(sourcePath);
+      setStatus("Preparando separación de stems…");
+      const result = await desktop.separateStems({ sourcePath });
+      setStemResult(result);
+      setStemProgress({
+        trackId: result.manifest.trackId,
+        status: "ready",
+        progress01: 1,
+        message: result.cacheHit
+          ? "Stems recuperados desde la caché."
+          : "Los cuatro stems están listos."
+      });
+      setStatus(result.cacheHit ? "Stems recuperados desde la caché." : "Separación de stems completada.");
+      setView("stems");
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      setError(message);
+      setStatus("La separación de stems falló");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openStemStudio = (): void => {
+    if (stemResult !== null) {
+      setView("stems");
+      return;
+    }
+    void chooseAndSeparateStems();
+  };
 
   const togglePlayback =
     async (
@@ -619,6 +677,11 @@ function App() {
               "dj",
               "Preparación DJ",
               "◎"
+            ],
+            [
+              "stems",
+              "Estudio de stems",
+              "◉"
             ]
           ].map(
             ([
@@ -685,7 +748,7 @@ function App() {
 
           <div className="version">
             QDEV Mashups ·
-            v0.1.0
+            v1.0.0
           </div>
         </div>
       </aside>
@@ -788,6 +851,9 @@ function App() {
               }
               onPreview={
                 createRealPreview
+              }
+              onOpenStemStudio={
+                openStemStudio
               }
               busy={
                 busy
@@ -912,6 +978,18 @@ function App() {
               )
           )}
 
+          {view === "stems" && (
+            <StemStudioView
+              sourcePath={stemSourcePath}
+              result={stemResult}
+              progress={stemProgress}
+              desktop={desktop}
+              busy={busy}
+              onSeparate={chooseAndSeparateStems}
+              onProgress={setStemProgress}
+            />
+          )}
+
           {view === "dj" && (
             selected === null
               ? (
@@ -946,6 +1024,7 @@ function Overview({
   onSelect,
   onScan,
   onPreview,
+  onOpenStemStudio,
   busy
 }: {
   library:
@@ -959,6 +1038,7 @@ function Overview({
   ) => void;
   onScan: () => void;
   onPreview: () => void;
+  onOpenStemStudio: () => void;
   busy: boolean;
 }) {
   return (
@@ -970,17 +1050,13 @@ function Overview({
           </div>
 
           <h2>
-            Discover the
+            Descubre la
             <br />
-            perfect combination.
+            combinación perfecta.
           </h2>
 
           <p>
-            QDEV analyzes your
-            local music library,
-            calculates compatibility
-            and prepares real mashup
-            previews.
+            QDEV analiza tu biblioteca musical local, calcula compatibilidad y prepara previsualizaciones reales de mashups.
           </p>
 
           <div className="hero-actions">
@@ -1005,7 +1081,17 @@ function Overview({
                 onPreview
               }
             >
-              Create Real Preview
+              Crear previsualización
+            </button>
+
+            <button
+              className="ghost-button"
+              onClick={
+                onOpenStemStudio
+              }
+              disabled={busy}
+            >
+              Separar stems
             </button>
           </div>
 
@@ -2412,6 +2498,320 @@ function Parameter({
   );
 }
 
+
+function StemStudioView({
+  sourcePath,
+  result,
+  progress,
+  desktop,
+  busy,
+  onSeparate,
+  onProgress
+}: {
+  sourcePath: string | null;
+  result: StemStudioResult | null;
+  progress: StemProgressEvent | null;
+  desktop: ReturnType<typeof getDesktopApi>;
+  busy: boolean;
+  onSeparate: () => Promise<void>;
+  onProgress: (event: StemProgressEvent | null) => void;
+}) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [masterGain, setMasterGain] = useState(1);
+  const [activeStem, setActiveStem] = useState<StemChannel | "all">("all");
+  const [gain, setGain] = useState<Record<StemChannel, number>>({
+    vocals: 1,
+    drums: 1,
+    bass: 1,
+    other: 1
+  });
+  const stemAudioRefs = useRef<Record<StemChannel, HTMLAudioElement | null>>({
+    vocals: null,
+    drums: null,
+    bass: null,
+    other: null
+  });
+  const stemGainNodes = useRef<Record<StemChannel, GainNode | null>>({
+    vocals: null,
+    drums: null,
+    bass: null,
+    other: null
+  });
+  const audioContext = useRef<AudioContext | null>(null);
+  const masterGainNode = useRef<GainNode | null>(null);
+
+  useEffect(() => {
+    return () => {
+      audioRef.current?.pause();
+      audioRef.current = null;
+      (Object.keys(stemAudioRefs.current) as StemChannel[]).forEach((channel) => {
+        stemAudioRefs.current[channel]?.pause();
+        stemAudioRefs.current[channel] = null;
+        stemGainNodes.current[channel] = null;
+      });
+      void audioContext.current?.close();
+      audioContext.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    (Object.keys(stemAudioRefs.current) as StemChannel[]).forEach((channel) => {
+      stemAudioRefs.current[channel]?.pause();
+      stemAudioRefs.current[channel] = null;
+      stemGainNodes.current[channel] = null;
+    });
+    if (audioContext.current) {
+      void audioContext.current.close();
+      audioContext.current = null;
+    }
+    masterGainNode.current = null;
+    setPlaying(false);
+    setCurrentTime(0);
+
+    if (!result) {
+      return;
+    }
+
+    const initializeMixer = async (): Promise<void> => {
+      const AudioContextCtor = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextCtor) {
+        return;
+      }
+      const context = new AudioContextCtor();
+      const master = context.createGain();
+      master.gain.value = 1;
+      master.connect(context.destination);
+      audioContext.current = context;
+      masterGainNode.current = master;
+
+      for (const channel of ["vocals", "drums", "bass", "other"] as StemChannel[]) {
+        const audio = new Audio(result.stemFiles[channel].url);
+        audio.preload = "auto";
+        audio.addEventListener("timeupdate", () => {
+          if (channel === "vocals") {
+            setCurrentTime(audio.currentTime);
+          }
+        });
+        const source = context.createMediaElementSource(audio);
+        const gainNode = context.createGain();
+        gainNode.gain.value = 1;
+        source.connect(gainNode).connect(master);
+        stemAudioRefs.current[channel] = audio;
+        stemGainNodes.current[channel] = gainNode;
+      }
+    };
+
+    void initializeMixer();
+  }, [result]);
+
+  useEffect(() => {
+    if (masterGainNode.current) {
+      masterGainNode.current.gain.value = masterGain;
+    }
+  }, [masterGain]);
+
+  useEffect(() => {
+    (Object.keys(gain) as StemChannel[]).forEach((channel) => {
+      if (stemGainNodes.current[channel]) {
+        stemGainNodes.current[channel]!.gain.value = gain[channel];
+      }
+    });
+  }, [gain]);
+
+  const sourceUrl = result?.sourceUrl ?? null;
+
+  const playStemMix = async (): Promise<void> => {
+    const audioNodes = (Object.keys(stemAudioRefs.current) as StemChannel[])
+      .map((channel) => stemAudioRefs.current[channel])
+      .filter((audio): audio is HTMLAudioElement => audio !== null);
+
+    if (audioNodes.length === 0) {
+      if (sourceUrl) {
+        await playSource();
+      }
+      return;
+    }
+
+    const context = audioContext.current;
+    if (context?.state === "suspended") {
+      await context.resume();
+    }
+
+    if (audioNodes.every((audio) => audio.paused)) {
+      audioNodes.forEach((audio) => { audio.currentTime = currentTime; });
+      await Promise.all(audioNodes.map((audio) => audio.play()));
+      setPlaying(true);
+    } else {
+      audioNodes.forEach((audio) => audio.pause());
+      setPlaying(false);
+    }
+  };
+
+  const playSource = async (): Promise<void> => {
+    if (!sourceUrl) {
+      return;
+    }
+
+    if (audioRef.current === null) {
+      const audio = new Audio(sourceUrl);
+      audio.preload = "auto";
+      audio.addEventListener("timeupdate", () => setCurrentTime(audio.currentTime));
+      audio.addEventListener("ended", () => {
+        setPlaying(false);
+        setCurrentTime(0);
+      });
+      audioRef.current = audio;
+    }
+
+    if (audioRef.current.paused) {
+      await audioRef.current.play();
+      setPlaying(true);
+    } else {
+      audioRef.current.pause();
+      setPlaying(false);
+    }
+  };
+
+  const seek = (time: number): void => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = time;
+    }
+    setCurrentTime(time);
+  };
+
+  const channelCards = (Object.keys(gain) as StemChannel[]).map((channel) => ({
+    channel,
+    label: {
+      vocals: "Voces",
+      drums: "Batería",
+      bass: "Bajo",
+      other: "Otros"
+    }[channel]
+  }));
+
+  return (
+    <div className="qdev-stem-studio">
+      <section className="qdev-stem-hero">
+        <div>
+          <span className="eyebrow">STEM STUDIO</span>
+          <h2>Separa, visualiza y prepara tu canción.</h2>
+          <p>
+            Ejecuta MLX-Demucs localmente, conserva cuatro canales y trabaja sobre una forma de onda RGB inspirada en los flujos de trabajo DJ profesionales.
+          </p>
+        </div>
+        <div className="qdev-stem-hero-actions">
+          <button className="primary-button" disabled={busy} onClick={() => void onSeparate()}>
+            {busy ? "Separando…" : "Elegir canción y separar"}
+          </button>
+          {progress !== null && (
+            <span className={`qdev-stem-status qdev-stem-status--${progress.status}`}>
+              {Math.round(progress.progress01 * 100)} % · {progress.message}
+            </span>
+          )}
+        </div>
+      </section>
+
+      <section className="qdev-stem-workspace">
+        <div className="qdev-stem-track-card">
+          <div className="qdev-stem-track-header">
+            <div>
+              <span className="eyebrow">PISTA</span>
+              <h3>{sourcePath ? sourcePath.split(/[\\/]/u).pop() : "Ninguna pista seleccionada"}</h3>
+            </div>
+            <div className="qdev-stem-track-actions">
+              <button className="secondary-button" disabled={!sourceUrl} onClick={() => void playStemMix()}>
+                {playing ? "Pausar" : "Reproducir"}
+              </button>
+              {progress?.status === "running" && progress.trackId && desktop && (
+                <button
+                  className="ghost-button"
+                  onClick={() => void desktop.cancelStemSeparation(progress.trackId).then(() => onProgress(null))}
+                >
+                  Cancelar separación
+                </button>
+              )}
+            </div>
+          </div>
+
+          <RgbWaveform
+            audioUrl={sourceUrl}
+            currentTime={currentTime}
+            onSeek={seek}
+            label="Waveform RGB espectral"
+          />
+        </div>
+
+        <section className="qdev-stem-channels-panel">
+          <header>
+            <div>
+              <span className="eyebrow">CUATRO CANALES</span>
+              <h3>Mixer de stems</h3>
+            </div>
+            <div className="qdev-stem-badge">vocals · drums · bass · other</div>
+          </header>
+
+          <div className="qdev-stem-master-control">
+            <span>Master</span>
+            <output>{Math.round(masterGain * 100)} %</output>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={masterGain}
+              onChange={(event) => setMasterGain(Number(event.target.value))}
+            />
+          </div>
+
+          <div className="qdev-stem-channel-grid-modern">
+            {channelCards.map(({ channel, label }) => {
+              const file = result?.stemFiles[channel];
+              const value = gain[channel];
+              return (
+                <article className={`qdev-stem-strip qdev-stem-strip--${channel}`} key={channel}>
+                  <div className="qdev-stem-strip__header">
+                    <div>
+                      <strong>{label}</strong>
+                      <small>{file ? `${formatBytes(file.sizeBytes)} · listo` : "Sin separar"}</small>
+                    </div>
+                    <button
+                      className={activeStem === channel ? "qdev-stem-chip is-active" : "qdev-stem-chip"}
+                      onClick={() => setActiveStem(activeStem === channel ? "all" : channel)}
+                    >
+                      {activeStem === channel ? "En foco" : "Foco"}
+                    </button>
+                  </div>
+                  <div className="qdev-stem-strip__meter">
+                    <span style={{ width: `${Math.round(value * 72)}%` }} />
+                  </div>
+                  <label>
+                    <span>Ganancia</span>
+                    <output>{Math.round(value * 100)} %</output>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value={value}
+                      onChange={(event) => setGain((previous) => ({ ...previous, [channel]: Number(event.target.value) }))}
+                    />
+                  </label>
+                  <div className="qdev-stem-strip__footer">
+                    <span>{activeStem === channel ? "Canal seleccionado" : "Disponible"}</span>
+                    {file && <a href={file.url} download={`${channel}.wav`}>Abrir WAV</a>}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      </section>
+    </div>
+  );
+}
+
 function labelForView(
   view: View
 ): string {
@@ -2430,7 +2830,9 @@ function labelForView(
     preview:
       "Estudio de previsualización",
     dj:
-      "Preparación DJ"
+      "Preparación DJ",
+    stems:
+      "Estudio de stems"
   };
 
   return labels[
@@ -2456,7 +2858,9 @@ function titleForView(
     preview:
       "Estudio de previsualización",
     dj:
-      "Preparación DJ"
+      "Preparación DJ",
+    stems:
+      "Separación y mezcla de stems"
   };
 
   return titles[

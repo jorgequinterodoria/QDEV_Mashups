@@ -373,3 +373,16 @@ No repetir Phase 0–11.
 No introducir seis stems.
 No cerrar Phase 12 sin las cuatro validaciones verdes.
 Después de cerrar Phase 12, continuar con Phase 13.
+
+## PHASE 28 — Stem Studio + Waveform RGB
+
+- separación de stems desde la aplicación de escritorio
+- progreso y cancelación
+- caché visible y reutilizable
+- waveform RGB real
+- scrub interactivo
+- mixer de cuatro canales integrado
+- exportación/descarga de los cuatro stems
+- contrato es-CO
+
+Estado: EN IMPLEMENTACIÓN.

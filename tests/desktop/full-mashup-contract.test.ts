@@ -39,6 +39,13 @@ describe("full mashup desktop contract", () => {
         discoveryTracksAnalyzed: 0
       }),
       chooseAudioFiles: async () => [],
+      chooseAudioFile: async () => null,
+      getSourceAudioUrl: async () => "file:///Users/test/Music/source.mp3",
+      separateStems: async () => {
+        throw new Error("stub");
+      },
+      cancelStemSeparation: async () => false,
+      onStemProgress: () => () => undefined,
       createPreview: async () => preview,
       createFullMashup: async () => ({
         ...preview,
