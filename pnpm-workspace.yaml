@@ -1,0 +1,5 @@
+allowBuilds:
+  '@audio/mic': true
+  '@audio/speaker': true
+  electron-winstaller: true
+  esbuild: true

@@ -1,0 +1,72 @@
+{
+  "name": "mashup-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Professional local music library analysis and mashup assistant for macOS.",
+  "type": "module",
+  "main": "dist-electron/electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build:renderer": "vite build",
+    "build:electron": "node electron/build.mjs",
+    "build": "pnpm typecheck && pnpm build:renderer && pnpm build:electron",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "validate": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
+    "desktop": "pnpm build && electron .",
+    "desktop:dist": "pnpm build && electron-builder --mac"
+  },
+  "dependencies": {
+    "audio": "^2.6.9",
+    "electron": "44.3.0",
+    "music-metadata": "^11.15.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.35.0",
+    "@types/node": "^24.3.0",
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.2",
+    "electron-builder": "26.15.3",
+    "esbuild": "0.28.2",
+    "eslint": "^9.35.0",
+    "eslint-plugin-react-hooks": "^6.1.1",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "8.70.0",
+    "vite": "7.3.6",
+    "vitest": "^3.2.7"
+  },
+  "build": {
+    "appId": "com.qdev.mashups",
+    "productName": "QDEV Mashups",
+    "asar": true,
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "electron/preload.cjs",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.music",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+.vite/
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+dist-electron/
+.venv-stems/
